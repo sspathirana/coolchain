@@ -76,12 +76,19 @@
 
     function renderMap(start = null, end = null) {
       const toggleContainer = document.getElementById("deviceToggles");
-      toggleContainer.innerHTML = "";
+      
+    const prevStates = {};
+    Object.keys(allData).forEach(id => {
+      const cb = document.getElementById(`poly-${id}`);
+      if (cb) prevStates[id] = cb.checked;
+    });
+    toggleContainer.innerHTML = "";
+    
 
       Object.keys(allData).forEach(deviceId => {
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
-        checkbox.checked = true;
+        checkbox.checked = prevStates[deviceId] !== undefined ? prevStates[deviceId] : true;
         checkbox.id = `poly-${deviceId}`;
         checkbox.onchange = () => renderMap(start, end);
 
