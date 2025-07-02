@@ -90,7 +90,13 @@
         checkbox.type = "checkbox";
         checkbox.checked = prevStates[deviceId] !== undefined ? prevStates[deviceId] : true;
         checkbox.id = `poly-${deviceId}`;
-        checkbox.onchange = () => renderMap(start, end);
+        checkbox.addEventListener('change', () => {
+          const startVal = document.getElementById('startTime').value;
+          const endVal = document.getElementById('endTime').value;
+          const startDate = startVal ? new Date(startVal) : null;
+          const endDate = endVal ? new Date(endVal) : null;
+          renderMap(startDate, endDate);
+        });
 
         const label = document.createElement("label");
         label.innerText = ` Show ${deviceId}`;
