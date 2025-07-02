@@ -4,47 +4,49 @@
 <head>
   <title>GPS Tracker with History</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  html, body, #map {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-  }
-
-  #controls {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 5;
-    background: white;
-    padding: 10px;
-    border-radius: 8px;
-    box-shadow: 0 0 5px rgba(0,0,0,0.3);
-    font-size: 16px;
-  }
-
-  /* Improve font size for small screens */
-  @media (max-width: 768px) {
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
     #controls {
-      font-size: 18px;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 5;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      font-size: 16px;
+      max-height: 90vh;
+      overflow-y: auto;
     }
-    .gm-style .gm-style-iw {
-      font-size: 18px !important;
+    @media (max-width: 768px) {
+      #controls {
+        font-size: 18px;
+      }
+      .gm-style .gm-style-iw {
+        font-size: 18px !important;
+      }
     }
-  }
-</style>
+  </style>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBWRP7u5bFJZ0fUt4Ps7-GS6uT18KdPAuA"></script>
 </head>
 <body>
-<div id="controls">
-  <label>From: <input type="datetime-local" id="startTime"></label>
-  <label>To: <input type="datetime-local" id="endTime"></label>
-  <button onclick="applyFilter()">Apply Filter</button>
-  <button onclick="exportCSV()">Export CSV</button>
-  <div id="deviceToggles"></div>
-</div>
+  <div id="controls">
+    <label>From: <input type="datetime-local" id="startTime"></label>
+    <label>To: <input type="datetime-local" id="endTime"></label>
+    <button onclick="applyFilter()">Apply Filter</button>
+    <button onclick="exportCSV()">Export CSV</button>
+    <hr>
+    <button onclick="toggleAll(true)">Show All Trails</button>
+    <button onclick="toggleAll(false)">Hide All Trails</button>
+    <div id="deviceToggles"></div>
+  </div>
   <div id="map"></div>
 
   <script>
@@ -72,73 +74,71 @@
       });
     }
 
-function renderMap(start = null, end = null) {
-  const toggleContainer = document.getElementById("deviceToggles");
-  toggleContainer.innerHTML = "";
+    function renderMap(start = null, end = null) {
+      const toggleContainer = document.getElementById("deviceToggles");
+      toggleContainer.innerHTML = "";
 
-  Object.keys(allData).forEach(deviceId => {
-    // Create checkbox
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = true;
-    checkbox.id = `poly-${deviceId}`;
-    checkbox.onchange = () => renderMap(start, end); // re-render on toggle
+      Object.keys(allData).forEach(deviceId => {
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = true;
+        checkbox.id = `poly-${deviceId}`;
+        checkbox.onchange = () => renderMap(start, end);
 
-    const label = document.createElement("label");
-    label.innerText = ` Show ${deviceId}`;
-    label.htmlFor = checkbox.id;
+        const label = document.createElement("label");
+        label.innerText = ` Show ${deviceId}`;
+        label.htmlFor = checkbox.id;
 
-    toggleContainer.appendChild(checkbox);
-    toggleContainer.appendChild(label);
-    toggleContainer.appendChild(document.createElement("br"));
-  });
-
-  Object.keys(allData).forEach(deviceId => {
-    const readings = allData[deviceId];
-    const timestamps = Object.keys(readings).sort();
-    const path = [];
-    let lastPoint = null;
-
-    timestamps.forEach(ts => {
-      const r = readings[ts];
-      const t = new Date(r.timestamp || ts.replace(/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/, '$1-$2-$3T$4:$5:$6'));
-      if ((!start || t >= start) && (!end || t <= end)) {
-        const point = { lat: r.latitude, lng: r.longitude };
-        path.push(point);
-        lastPoint = { ...r, position: point };
-      }
-    });
-
-    if (path.length === 0) return;
-
-    if (!markers[deviceId]) {
-      markers[deviceId] = new google.maps.Marker({ map, title: deviceId });
-      infoWindows[deviceId] = new google.maps.InfoWindow();
-    }
-
-    markers[deviceId].setPosition(lastPoint.position);
-    infoWindows[deviceId].setContent(`<strong>${deviceId}</strong><br>Temp: ${lastPoint.temperature} °C<br>Time: ${lastPoint.timestamp}`);
-    infoWindows[deviceId].open(map, markers[deviceId]);
-
-    // Toggle polyline based on checkbox
-    const showTrail = document.getElementById(`poly-${deviceId}`).checked;
-
-    if (polylines[deviceId]) {
-      polylines[deviceId].setPath(path);
-      polylines[deviceId].setMap(showTrail ? map : null); // Hide if unchecked
-    } else {
-      const polyline = new google.maps.Polyline({
-        path: path,
-        geodesic: true,
-        strokeColor: getColorForDevice(deviceId),
-        strokeOpacity: 1.0,
-        strokeWeight: 2,
-        map: showTrail ? map : null
+        toggleContainer.appendChild(checkbox);
+        toggleContainer.appendChild(label);
+        toggleContainer.appendChild(document.createElement("br"));
       });
-      polylines[deviceId] = polyline;
+
+      Object.keys(allData).forEach(deviceId => {
+        const readings = allData[deviceId];
+        const timestamps = Object.keys(readings).sort();
+        const path = [];
+        let lastPoint = null;
+
+        timestamps.forEach(ts => {
+          const r = readings[ts];
+          const t = new Date(r.timestamp || ts.replace(/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/, '$1-$2-$3T$4:$5:$6'));
+          if ((!start || t >= start) && (!end || t <= end)) {
+            const point = { lat: r.latitude, lng: r.longitude };
+            path.push(point);
+            lastPoint = { ...r, position: point };
+          }
+        });
+
+        if (path.length === 0) return;
+
+        if (!markers[deviceId]) {
+          markers[deviceId] = new google.maps.Marker({ map, title: deviceId });
+          infoWindows[deviceId] = new google.maps.InfoWindow();
+        }
+
+        markers[deviceId].setPosition(lastPoint.position);
+        infoWindows[deviceId].setContent(`<strong>${deviceId}</strong><br>Temp: ${lastPoint.temperature} °C<br>Time: ${lastPoint.timestamp}`);
+        infoWindows[deviceId].open(map, markers[deviceId]);
+
+        const showTrail = document.getElementById(`poly-${deviceId}`).checked;
+
+        if (polylines[deviceId]) {
+          polylines[deviceId].setPath(path);
+          polylines[deviceId].setMap(showTrail ? map : null);
+        } else {
+          polylines[deviceId] = new google.maps.Polyline({
+            map: showTrail ? map : null,
+            geodesic: true,
+            strokeColor: getColorForDevice(deviceId),
+            strokeOpacity: 1.0,
+            strokeWeight: 2,
+            path: path
+          });
+        }
+      });
     }
-  });
-}
+
     function applyFilter() {
       const start = document.getElementById('startTime').value;
       const end = document.getElementById('endTime').value;
@@ -161,6 +161,14 @@ function renderMap(start = null, end = null) {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+
+    function toggleAll(state) {
+      Object.keys(allData).forEach(deviceId => {
+        const checkbox = document.getElementById(`poly-${deviceId}`);
+        if (checkbox) checkbox.checked = state;
+      });
+      applyFilter();
     }
 
     function getColorForDevice(id) {
