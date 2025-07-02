@@ -1,0 +1,136 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GPS Tracker with History</title>
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 5;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBWRP7u5bFJZ0fUt4Ps7-GS6uT18KdPAuA"></script>
+</head>
+<body>
+  <div id="controls">
+    <label>From: <input type="datetime-local" id="startTime"></label>
+    <label>To: <input type="datetime-local" id="endTime"></label>
+    <button onclick="applyFilter()">Apply Filter</button>
+    <button onclick="exportCSV()">Export CSV</button>
+  </div>
+  <div id="map"></div>
+
+  <script>
+    const firebaseConfig = {
+      databaseURL: "https://cool-chain-66f18-default-rtdb.firebaseio.com/"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let map;
+    const markers = {};
+    const infoWindows = {};
+    const polylines = {};
+    let allData = {};
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 13,
+        center: { lat: 6.9271, lng: 79.8612 }
+      });
+
+      db.ref("gps").on("value", snapshot => {
+        allData = snapshot.val() || {};
+        renderMap();
+      });
+    }
+
+    function renderMap(start = null, end = null) {
+      Object.keys(allData).forEach(deviceId => {
+        const readings = allData[deviceId];
+        const timestamps = Object.keys(readings).sort();
+        const path = [];
+        let lastPoint = null;
+
+        timestamps.forEach(ts => {
+          const r = readings[ts];
+          const t = new Date(r.timestamp || ts.replace(/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/, '$1-$2-$3T$4:$5:$6'));
+          if ((!start || t >= start) && (!end || t <= end)) {
+            const point = { lat: r.latitude, lng: r.longitude };
+            path.push(point);
+            lastPoint = { ...r, position: point };
+          }
+        });
+
+        if (path.length === 0) return;
+
+        if (!markers[deviceId]) {
+          markers[deviceId] = new google.maps.Marker({ map, title: deviceId });
+          infoWindows[deviceId] = new google.maps.InfoWindow();
+        }
+
+        markers[deviceId].setPosition(lastPoint.position);
+        infoWindows[deviceId].setContent(`<strong>${deviceId}</strong><br>Temp: ${lastPoint.temperature} °C<br>Time: ${lastPoint.timestamp}`);
+        infoWindows[deviceId].open(map, markers[deviceId]);
+
+        if (polylines[deviceId]) {
+          polylines[deviceId].setPath(path);
+        } else {
+          polylines[deviceId] = new google.maps.Polyline({
+            map,
+            geodesic: true,
+            strokeColor: getColorForDevice(deviceId),
+            strokeOpacity: 1.0,
+            strokeWeight: 2,
+            path: path
+          });
+        }
+      });
+    }
+
+    function applyFilter() {
+      const start = document.getElementById('startTime').value;
+      const end = document.getElementById('endTime').value;
+      renderMap(start ? new Date(start) : null, end ? new Date(end) : null);
+    }
+
+    function exportCSV() {
+      let rows = [["Device ID", "Latitude", "Longitude", "Temperature", "Timestamp"]];
+      Object.keys(allData).forEach(deviceId => {
+        Object.keys(allData[deviceId]).forEach(ts => {
+          const d = allData[deviceId][ts];
+          rows.push([deviceId, d.latitude, d.longitude, d.temperature, d.timestamp || ts]);
+        });
+      });
+      const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "gps_history.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function getColorForDevice(id) {
+      const colors = { device1: "#FF0000", device2: "#0000FF", device3: "#00AA00" };
+      return colors[id] || "#555";
+    }
+
+    window.onload = initMap;
+  </script>
+</body>
+</html>
