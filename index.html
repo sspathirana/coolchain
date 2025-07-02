@@ -43,6 +43,7 @@
     <label>To: <input type="datetime-local" id="endTime"></label>
     <button onclick="applyFilter()">Apply Filter</button>
     <button onclick="exportCSV()">Export CSV</button>
+    <div id="deviceToggles"></div>
   </div>
   <div id="map"></div>
 
@@ -71,48 +72,141 @@
       });
     }
 
-    function renderMap(start = null, end = null) {
-      Object.keys(allData).forEach(deviceId => {
-        const readings = allData[deviceId];
-        const timestamps = Object.keys(readings).sort();
-        const path = [];
-        let lastPoint = null;
+function renderMap(start = null, end = null) {
+  const toggleContainer = document.getElementById("deviceToggles");
+  toggleContainer.innerHTML = "";
 
-        timestamps.forEach(ts => {
-          const r = readings[ts];
-          const t = new Date(r.timestamp || ts.replace(/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/, '$1-$2-$3T$4:$5:$6'));
-          if ((!start || t >= start) && (!end || t <= end)) {
-            const point = { lat: r.latitude, lng: r.longitude };
-            path.push(point);
-            lastPoint = { ...r, position: point };
-          }
-        });
+  Object.keys(allData).forEach(deviceId => {
+    // Create checkbox
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = true;
+    checkbox.id = `poly-${deviceId}`;
+    checkbox.onchange = () => renderMap(start, end); // re-render on toggle
 
-        if (path.length === 0) return;
+    const label = document.createElement("label");
+    label.innerText = ` Show ${deviceId}`;
+    label.htmlFor = checkbox.id;
 
-        if (!markers[deviceId]) {
-          markers[deviceId] = new google.maps.Marker({ map, title: deviceId });
-          infoWindows[deviceId] = new google.maps.InfoWindow();
-        }
+    toggleContainer.appendChild(checkbox);
+    toggleContainer.appendChild(label);
+    toggleContainer.appendChild(document.createElement("br"));
+  });
 
-        markers[deviceId].setPosition(lastPoint.position);
-        infoWindows[deviceId].setContent(`<strong>${deviceId}</strong><br>Temp: ${lastPoint.temperature} °C<br>Time: ${lastPoint.timestamp}`);
-        infoWindows[deviceId].open(map, markers[deviceId]);
+  Object.keys(allData).forEach(deviceId => {
+    const readings = allData[deviceId];
+    const timestamps = Object.keys(readings).sort();
+    const path = [];
+    let lastPoint = null;
 
-        /*if (polylines[deviceId]) {
-          polylines[deviceId].setPath(path);
-        } else {
-          polylines[deviceId] = new google.maps.Polyline({
-            map,
-            geodesic: true,
-            strokeColor: getColorForDevice(deviceId),
-            strokeOpacity: 1.0,
-            strokeWeight: 2,
-            path: path
-          });*/
-        }
-      });
+    timestamps.forEach(ts => {
+      const r = readings[ts];
+      const t = new Date(r.timestamp || ts.replace(/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/, '$1-$2-$3T$4:$5:$6'));
+      if ((!start || t >= start) && (!end || t <= end)) {
+        const point = { lat: r.latitude, lng: r.longitude };
+        path.push(point);
+        lastPoint = { ...r, position: point };
+      }
+    });
+
+    if (path.length === 0) return;
+
+    if (!markers[deviceId]) {
+      markers[deviceId] = new google.maps.Marker({ map, title: deviceId });
+      infoWindows[deviceId] = new google.maps.InfoWindow();
     }
+
+    markers[deviceId].setPosition(lastPoint.position);
+    infoWindows[deviceId].setContent(`<strong>${deviceId}</strong><br>Temp: ${lastPoint.temperature} °C<br>Time: ${lastPoint.timestamp}`);
+    infoWindows[deviceId].open(map, markers[deviceId]);
+
+    // Toggle polyline based on checkbox
+    const showTrail = document.getElementById(`poly-${deviceId}`).checked;
+
+    if (polylines[deviceId]) {
+      polylines[deviceId].setPath(path);
+      polylines[deviceId].setMap(showTrail ? map : null); // Hide if unchecked
+    } else {
+      const polyline = new google.maps.Polyline({
+        path: path,
+        geodesic: true,
+        strokeColor: getColorForDevice(deviceId),
+        strokeOpacity: 1.0,
+        strokeWeight: 2,
+        map: showTrail ? map : null
+      });
+      polylines[deviceId] = polyline;
+    }
+  });
+}
+function renderMap(start = null, end = null) {
+  const toggleContainer = document.getElementById("deviceToggles");
+  toggleContainer.innerHTML = "";
+
+  Object.keys(allData).forEach(deviceId => {
+    // Create checkbox
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = true;
+    checkbox.id = `poly-${deviceId}`;
+    checkbox.onchange = () => renderMap(start, end); // re-render on toggle
+
+    const label = document.createElement("label");
+    label.innerText = ` Show ${deviceId}`;
+    label.htmlFor = checkbox.id;
+
+    toggleContainer.appendChild(checkbox);
+    toggleContainer.appendChild(label);
+    toggleContainer.appendChild(document.createElement("br"));
+  });
+
+  Object.keys(allData).forEach(deviceId => {
+    const readings = allData[deviceId];
+    const timestamps = Object.keys(readings).sort();
+    const path = [];
+    let lastPoint = null;
+
+    timestamps.forEach(ts => {
+      const r = readings[ts];
+      const t = new Date(r.timestamp || ts.replace(/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/, '$1-$2-$3T$4:$5:$6'));
+      if ((!start || t >= start) && (!end || t <= end)) {
+        const point = { lat: r.latitude, lng: r.longitude };
+        path.push(point);
+        lastPoint = { ...r, position: point };
+      }
+    });
+
+    if (path.length === 0) return;
+
+    if (!markers[deviceId]) {
+      markers[deviceId] = new google.maps.Marker({ map, title: deviceId });
+      infoWindows[deviceId] = new google.maps.InfoWindow();
+    }
+
+    markers[deviceId].setPosition(lastPoint.position);
+    infoWindows[deviceId].setContent(`<strong>${deviceId}</strong><br>Temp: ${lastPoint.temperature} °C<br>Time: ${lastPoint.timestamp}`);
+    infoWindows[deviceId].open(map, markers[deviceId]);
+
+    // Toggle polyline based on checkbox
+    const showTrail = document.getElementById(`poly-${deviceId}`).checked;
+
+    if (polylines[deviceId]) {
+      polylines[deviceId].setPath(path);
+      polylines[deviceId].setMap(showTrail ? map : null); // Hide if unchecked
+    } else {
+      const polyline = new google.maps.Polyline({
+        path: path,
+        geodesic: true,
+        strokeColor: getColorForDevice(deviceId),
+        strokeOpacity: 1.0,
+        strokeWeight: 2,
+        map: showTrail ? map : null
+      });
+      polylines[deviceId] = polyline;
+    }
+  });
+}
+
 
     function applyFilter() {
       const start = document.getElementById('startTime').value;
